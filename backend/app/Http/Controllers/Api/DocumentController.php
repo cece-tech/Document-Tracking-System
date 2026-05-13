@@ -133,6 +133,18 @@ class DocumentController extends Controller
             $document->file_name
         );
     }
+    public function logs(Request $request)
+    {
+        if (!$request->user()->isAdmin()) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $logs = DocumentLog::with(['user', 'document'])
+            ->latest()
+            ->paginate(20);
+
+        return response()->json($logs);
+    }
 
     // Delete (admin only)
     public function destroy(Request $request, Document $document)

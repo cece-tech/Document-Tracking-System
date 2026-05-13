@@ -29,6 +29,13 @@ class Document extends Model
     {
         return $this->belongsTo(User::class, 'reviewed_by');
     }
+    public function sender() {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function receiverDepartment() {
+        return $this->belongsTo(Department::class, 'department_id');
+    }
 
     public function logs()
     {

@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import api from '../api/axios'
 
-/* ─── helpers ──────────────────────────────────────────── */
+/* ─── helpers (Unchanged) ──────────────────────────────────────────── */
 const fmt = (d) =>
   new Date(d).toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
@@ -11,7 +11,7 @@ const fmt = (d) =>
 const actDot = (status) =>
   ({ approved: 'green', pending: 'yellow', rejected: 'red', archived: 'gray' }[status] || 'blue')
 
-/* ─── StatusBadge ──────────────────────────────────────── */
+/* ─── StatusBadge (Unchanged) ──────────────────────────────────────── */
 function StatusBadge({ status }) {
   const cls = {
     approved: 'badge-approved',
@@ -32,7 +32,7 @@ function StatusBadge({ status }) {
   )
 }
 
-/* ─── Toast ────────────────────────────────────────────── */
+/* ─── Toast (Unchanged) ────────────────────────────────────────────── */
 let _toastTimer
 function showToast(msg) {
   const el = document.getElementById('dt-toast')
@@ -43,9 +43,7 @@ function showToast(msg) {
   _toastTimer = setTimeout(() => { el.style.display = 'none' }, 2800)
 }
 
-/* ─── Authenticated file download ─────────────────────── */
-// NOTE: Uses axios (which injects the Bearer token) instead of
-// a plain <a href> — that's why process.env is NOT needed here.
+/* ─── Authenticated file download (Unchanged) ─────────────────────── */
 async function downloadFile(docId, fileName) {
   try {
     const res = await api.get(`/documents/${docId}/download`, {
@@ -64,7 +62,7 @@ async function downloadFile(docId, fileName) {
   }
 }
 
-/* ─── Doc Detail Modal ─────────────────────────────────── */
+/* ─── Doc Detail Modal (Unchanged) ─────────────────────────────────── */
 function DocModal({ doc, onClose }) {
   if (!doc) return null
   return (
@@ -133,9 +131,7 @@ function DocModal({ doc, onClose }) {
   )
 }
 
-/* ══════════════════════════════════════════════════════════
-   PAGE: HOME
-══════════════════════════════════════════════════════════ */
+/* ─── PAGE: HOME (Unchanged) ───────────────────────── */
 function PageHome({ docs, loading }) {
   const [selected, setSelected] = useState(null)
 
@@ -170,7 +166,7 @@ function PageHome({ docs, loading }) {
 
       <div className="section-title">Recent Documents</div>
 
-      {loading ? (
+      {loading && docs.length === 0 ? (
         <div className="loading"><div className="spinner" /></div>
       ) : (
         <div className="doc-list">
@@ -202,12 +198,22 @@ function PageHome({ docs, loading }) {
   )
 }
 
-/* ══════════════════════════════════════════════════════════
-   PAGE: DOCUMENTS
-══════════════════════════════════════════════════════════ */
-function PageDocuments({ docs, loading, user, onRefresh }) {
+/* ─── PAGE: DOCUMENTS (Modified for Lazy Loading) ───────────────────── */
+function PageDocuments({ docs, loading, user, onRefresh, fetchMore, hasMore }) {
   const [filter, setFilter]     = useState('all')
   const [selected, setSelected] = useState(null)
+  
+  const observer = useRef()
+  const lastDocElementRef = useCallback(node => {
+    if (loading) return
+    if (observer.current) observer.current.disconnect()
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore) {
+        fetchMore()
+      }
+    })
+    if (node) observer.current.observe(node)
+  }, [loading, hasMore, fetchMore])
 
   const filtered = filter === 'all' ? docs : docs.filter(d => d.status === filter)
   const canReview = user?.role === 'admin' || user?.role === 'dept_head'
@@ -245,68 +251,66 @@ function PageDocuments({ docs, loading, user, onRefresh }) {
         </select>
       </div>
 
-      {loading ? (
-        <div className="loading"><div className="spinner" /></div>
-      ) : (
-        <div className="scroll-list">
-          <div className="doc-list">
-            {filtered.length === 0 && (
-              <div className="empty-state">
-                <div className="es-icon">🔍</div>No documents found
-              </div>
-            )}
-            {filtered.map(doc => (
-              <div key={doc.id} className="doc-item">
-                <div className="doc-accent" />
-                <div className="doc-info">
-                  <div className="doc-name">{doc.title}</div>
-                  <div className="doc-meta">
-                    {doc.department?.name} · {fmt(doc.created_at)}
-                  </div>
+      <div className="scroll-list">
+        <div className="doc-list">
+          {filtered.length === 0 && !loading && (
+            <div className="empty-state">
+              <div className="es-icon">🔍</div>No documents found
+            </div>
+          )}
+          {filtered.map((doc, index) => (
+            <div 
+              key={doc.id} 
+              className="doc-item"
+              ref={filtered.length === index + 1 ? lastDocElementRef : null}
+            >
+              <div className="doc-accent" />
+              <div className="doc-info">
+                <div className="doc-name">{doc.title}</div>
+                <div className="doc-meta">
+                  {doc.department?.name} · {fmt(doc.created_at)}
                 </div>
-                <div className="doc-actions">
-                  <StatusBadge status={doc.status} />
+              </div>
+              <div className="doc-actions">
+                <StatusBadge status={doc.status} />
 
-                  <button className="btn btn-view" onClick={() => setSelected(doc)}>
-                    View
+                <button className="btn btn-view" onClick={() => setSelected(doc)}>
+                  View
+                </button>
+
+                {doc.file_path && (
+                  <button
+                    className="btn btn-edit"
+                    title="Download file"
+                    onClick={() => downloadFile(doc.id, doc.file_name)}
+                  >
+                    ⬇
                   </button>
+                )}
 
-                  {/* Download only shown if file is attached */}
-                  {doc.file_path && (
-                    <button
-                      className="btn btn-edit"
-                      title="Download file"
-                      onClick={() => downloadFile(doc.id, doc.file_name)}
-                    >
-                      ⬇
+                {canReview && doc.status === 'pending' && (
+                  <>
+                    <button className="btn btn-approve" onClick={() => review(doc, 'approved')}>
+                      Approve
                     </button>
-                  )}
-
-                  {canReview && doc.status === 'pending' && (
-                    <>
-                      <button className="btn btn-approve" onClick={() => review(doc, 'approved')}>
-                        Approve
-                      </button>
-                      <button className="btn btn-reject" onClick={() => review(doc, 'rejected')}>
-                        Reject
-                      </button>
-                    </>
-                  )}
-                </div>
+                    <button className="btn btn-reject" onClick={() => review(doc, 'rejected')}>
+                      Reject
+                    </button>
+                  </>
+                )}
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
+          {loading && <div className="loading"><div className="spinner" /></div>}
         </div>
-      )}
+      </div>
 
       {selected && <DocModal doc={selected} onClose={() => setSelected(null)} />}
     </>
   )
 }
 
-/* ══════════════════════════════════════════════════════════
-   PAGE: UPLOADS
-══════════════════════════════════════════════════════════ */
+/* ─── PAGE: UPLOADS (Unchanged) ───────────────────────── */
 function PageUploads({ departments, onSubmit }) {
   const [file, setFile]             = useState(null)
   const [title, setTitle]           = useState('')
@@ -454,9 +458,7 @@ function PageUploads({ departments, onSubmit }) {
   )
 }
 
-/* ══════════════════════════════════════════════════════════
-   PAGE: ACTIVITY LOGS
-══════════════════════════════════════════════════════════ */
+/* ─── PAGE: ACTIVITY LOGS (Unchanged) ───────────────────────── */
 function PageActivity({ docs }) {
   const sorted = [...docs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
 
@@ -487,28 +489,51 @@ function PageActivity({ docs }) {
   )
 }
 
-/* ══════════════════════════════════════════════════════════
-   MAIN DASHBOARD
-══════════════════════════════════════════════════════════ */
+/* ─── MAIN DASHBOARD (Updated with Lazy Loading Logic) ───────────────────────── */
 export default function Dashboard() {
   const { user, logout } = useAuth()
   const [page, setPage]               = useState('home')
   const [docs, setDocs]               = useState([])
   const [departments, setDepartments] = useState([])
-  const [loading, setLoading]         = useState(true)
+  const [loading, setLoading]         = useState(false)
+  
+  // Lazy Loading States
+  const [currentPage, setCurrentPage] = useState(1)
+  const [hasMore, setHasMore]         = useState(true)
 
-  const fetchDocs = () => {
+  const fetchDocs = useCallback((pageNum = 1, isRefresh = false) => {
     setLoading(true)
-    api.get('/documents')
-      .then(res => setDocs(res.data.data || res.data))
+    api.get(`/documents?page=${pageNum}`)
+      .then(res => {
+        const data = res.data.data || res.data
+        if (isRefresh) {
+          setDocs(data)
+        } else {
+          setDocs(prev => [...prev, ...data])
+        }
+        // If the batch is less than 10 (or your page limit), we assume no more data
+        setHasMore(data.length >= 10) 
+      })
       .catch(() => setDocs([]))
       .finally(() => setLoading(false))
-  }
+  }, [])
 
   useEffect(() => {
-    fetchDocs()
+    fetchDocs(1, true)
     api.get('/departments').then(res => setDepartments(res.data)).catch(() => {})
-  }, [])
+  }, [fetchDocs])
+
+  const loadMore = () => {
+    const next = currentPage + 1
+    setCurrentPage(next)
+    fetchDocs(next)
+  }
+
+  const handleRefresh = () => {
+    setCurrentPage(1)
+    setHasMore(true)
+    fetchDocs(1, true)
+  }
 
   const firstName = user?.name?.split(' ')[0] || 'User'
 
@@ -524,12 +549,21 @@ export default function Dashboard() {
       case 'home':
         return <PageHome docs={docs} loading={loading} />
       case 'documents':
-        return <PageDocuments docs={docs} loading={loading} user={user} onRefresh={fetchDocs} />
+        return (
+          <PageDocuments 
+            docs={docs} 
+            loading={loading} 
+            user={user} 
+            onRefresh={handleRefresh} 
+            fetchMore={loadMore}
+            hasMore={hasMore}
+          />
+        )
       case 'uploads':
         return (
           <PageUploads
             departments={departments}
-            onSubmit={() => { fetchDocs(); setPage('documents') }}
+            onSubmit={() => { handleRefresh(); setPage('documents') }}
           />
         )
       case 'activity':
@@ -541,7 +575,6 @@ export default function Dashboard() {
 
   return (
     <div className="app-shell">
-      {/* TOPBAR */}
       <div className="topbar">
         <div className="topbar-brand">
           <div className="brand-bar" />
@@ -558,7 +591,6 @@ export default function Dashboard() {
       </div>
 
       <div className="main-layout">
-        {/* SIDEBAR */}
         <div className="sidebar">
           <div className="sidebar-greeting">Hello,</div>
           <div className="sidebar-name">{firstName}!</div>
@@ -590,13 +622,11 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* CONTENT */}
         <div className="content-area">
           {renderPage()}
         </div>
       </div>
 
-      {/* TOAST */}
       <div id="dt-toast" className="toast" style={{ display: 'none' }} />
     </div>
   )

@@ -21,6 +21,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Documents
     Route::get('/documents',              [DocumentController::class, 'index']);
     Route::post('/documents',             [DocumentController::class, 'store']);
+    Route::get('/document-logs', [DocumentController::class, 'logs']);
     Route::get('/documents/{document}',   [DocumentController::class, 'show']);
     Route::put('/documents/{document}/review',  [DocumentController::class, 'review']);
     Route::delete('/documents/{document}', [DocumentController::class, 'destroy']);
