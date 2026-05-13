@@ -9,14 +9,14 @@ use App\Http\Controllers\Api\UserController;
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login',    [AuthController::class, 'login']);
 
+// Departments (public so register form can load them)
+Route::get('/departments', [DepartmentController::class, 'index']);
+
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me',      [AuthController::class, 'me']);
-
-    // Departments (all authenticated users)
-    Route::get('/departments', [DepartmentController::class, 'index']);
 
     // Documents
     Route::get('/documents',              [DocumentController::class, 'index']);
