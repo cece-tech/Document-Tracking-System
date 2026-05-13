@@ -24,6 +24,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/documents/{document}',   [DocumentController::class, 'show']);
     Route::put('/documents/{document}/review',  [DocumentController::class, 'review']);
     Route::delete('/documents/{document}', [DocumentController::class, 'destroy']);
+    Route::get('/documents/{document}/download', [DocumentController::class, 'download']); 
 
     // Admin: user management
     Route::get('/users',          [UserController::class, 'index']);

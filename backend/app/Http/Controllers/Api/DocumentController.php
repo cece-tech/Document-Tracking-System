@@ -44,7 +44,7 @@ class DocumentController extends Controller
             'title'         => 'required|string|max:255',
             'description'   => 'nullable|string',
             'department_id' => 'required|exists:departments,id',
-            'file'          => 'nullable|file|max:10240', // 10MB max
+            'file' => 'nullable|mimes:pdf,doc,docx,xls,xlsx,png,jpg,jpeg|max:20480',
         ]);
 
         $filePath = null;
@@ -120,6 +120,18 @@ class DocumentController extends Controller
         ]);
 
         return response()->json($document->load(['user', 'department', 'reviewer']));
+    }
+
+    public function download(Document $document)
+    {
+        if (!$document->file_path) {
+            return response()->json(['message' => 'No file attached'], 404);
+        }
+
+        return response()->download(
+            storage_path('app/public/' . $document->file_path),
+            $document->file_name
+        );
     }
 
     // Delete (admin only)
